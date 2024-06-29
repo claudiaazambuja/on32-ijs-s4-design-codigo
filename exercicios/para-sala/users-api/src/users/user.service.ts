@@ -5,6 +5,82 @@ import { User } from './user.entity';
 export class UserService {
   private users: User[] = [];
 
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  private isValidPassword(password: string): boolean {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return passwordRegex.test(password);
+  }
+
+  private isValidCpfFormat(cpf: string): boolean {
+    const cpfRegex = /^\d{3}\.\d{3}\.\d{3}\-\d{2}$/;
+    return cpfRegex.test(cpf);
+  }
+
+  private isValidCpfDigits(cpf: string): boolean {
+    const cpfWithoutDots = cpf.replace(/[^\d]+/g, '');
+    if (cpfWithoutDots.length !== 11) return false;
+
+    const invalidCpfs = [
+      '00000000000', '11111111111', '22222222222', '33333333333', '44444444444',
+      '55555555555', '66666666666', '77777777777', '88888888888', '99999999999'
+    ];
+
+    if (invalidCpfs.includes(cpfWithoutDots)) return false;
+
+    const calculateCpfDigit = (base: string, length: number): number => {
+      let sum = 0;
+      for (let i = 1; i <= length; i++) {
+        sum += parseInt(base.substring(i - 1, i)) * (length + 2 - i);
+      }
+      let remainder = (sum * 10) % 11;
+      if (remainder === 10 || remainder === 11) remainder = 0;
+      return remainder;
+    };
+
+    const firstDigit = calculateCpfDigit(cpfWithoutDots, 9);
+    const secondDigit = calculateCpfDigit(cpfWithoutDots, 10);
+
+    return firstDigit === parseInt(cpfWithoutDots[9]) && secondDigit === parseInt(cpfWithoutDots[10]);
+  }
+
+  private isEmailInUse(email: string): boolean {
+    return this.users.some(user => user.email === email);
+  }
+
+  private isCpfInUse(cpf: string): boolean {
+    return this.users.some(user => user.cpf === cpf);
+  }
+
+  private validateUserData(email: string, password: string, superPassword: string | undefined, cpf: string) {
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email');
+    }
+
+    if (!this.isValidPassword(password)) {
+      throw new Error('Invalid password');
+    }
+
+    if (superPassword && !this.isValidPassword(superPassword)) {
+      throw new Error('Invalid super password');
+    }
+
+    if (this.isEmailInUse(email)) {
+      throw new Error('Email already in use');
+    }
+
+    if (this.isCpfInUse(cpf)) {
+      throw new Error('CPF already in use');
+    }
+
+    if (!this.isValidCpfFormat(cpf) || !this.isValidCpfDigits(cpf)) {
+      throw new Error('Invalid CPF');
+    }
+  }
+
   createUser(
     name: string,
     email: string,
@@ -13,99 +89,7 @@ export class UserService {
     userType: 'customer' | 'manager' | 'admin',
     superPassword?: string,
   ): User {
-    // valida user data
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error('Invalid email');
-    } else {
-      if (
-        !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-          password,
-        )
-      ) {
-        throw new Error('Invalid password');
-      } else {
-        if (
-          superPassword &&
-          !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-            superPassword,
-          )
-        ) {
-          throw new Error('Invalid super password');
-        } else {
-          if (this.users.some((user) => user.email === email)) {
-            throw new Error('Email already in use');
-          } else {
-            if (this.users.some((user) => user.cpf === cpf)) {
-              throw new Error('CPF already in use');
-            } else {
-              if (!/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/.test(cpf)) {
-                throw new Error('Invalid CPF');
-              } else {
-                const cpfWithoutDots = cpf.replace(/[^\d]+/g, '');
-                if (cpfWithoutDots.length !== 11) {
-                  throw new Error('Invalid CPF');
-                } else {
-                  // Elimina CPFs conhecidos que são inválidos
-                  if (
-                    cpfWithoutDots === '00000000000' ||
-                    cpfWithoutDots === '11111111111' ||
-                    cpfWithoutDots === '22222222222' ||
-                    cpfWithoutDots === '33333333333' ||
-                    cpfWithoutDots === '44444444444' ||
-                    cpfWithoutDots === '55555555555' ||
-                    cpfWithoutDots === '66666666666' ||
-                    cpfWithoutDots === '77777777777' ||
-                    cpfWithoutDots === '88888888888' ||
-                    cpfWithoutDots === '99999999999'
-                  ) {
-                    throw new Error('Invalid CPF');
-                  }
-
-                  let sum = 0;
-                  let remainder;
-
-                  // Calcula o primeiro dígito verificador
-                  for (let i = 1; i <= 9; i++) {
-                    sum +=
-                      parseInt(cpfWithoutDots.substring(i - 1, i)) * (11 - i);
-                  }
-
-                  remainder = (sum * 10) % 11;
-
-                  if (remainder === 10 || remainder === 11) {
-                    remainder = 0;
-                  }
-
-                  if (remainder !== parseInt(cpfWithoutDots.substring(9, 10))) {
-                    throw new Error('Invalid CPF');
-                  }
-
-                  sum = 0;
-
-                  // Calcula o segundo dígito verificador
-                  for (let i = 1; i <= 10; i++) {
-                    sum +=
-                      parseInt(cpfWithoutDots.substring(i - 1, i)) * (12 - i);
-                  }
-
-                  remainder = (sum * 10) % 11;
-
-                  if (remainder === 10 || remainder === 11) {
-                    remainder = 0;
-                  }
-
-                  if (
-                    remainder !== parseInt(cpfWithoutDots.substring(10, 11))
-                  ) {
-                    throw new Error('Invalid CPF');
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    this.validateUserData(email, password, superPassword, cpf);
 
     const userCode = `${Date.now().toString()}${this.users.length}`;
     const user = new User(
@@ -118,6 +102,7 @@ export class UserService {
       `${this.users.length + 1}`,
       superPassword,
     );
+
     this.users.push(user);
     return user;
   }
@@ -131,112 +116,20 @@ export class UserService {
     userType: 'customer' | 'manager' | 'admin',
     superPassword?: string,
   ): User {
-    // valida user data
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error('Invalid email');
-    } else {
-      if (
-        !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-          password,
-        )
-      ) {
-        throw new Error('Invalid password');
-      } else {
-        if (
-          superPassword &&
-          !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-            superPassword,
-          )
-        ) {
-          throw new Error('Invalid super password');
-        } else {
-          if (this.users.some((user) => user.email === email)) {
-            throw new Error('Email already in use');
-          } else {
-            if (this.users.some((user) => user.cpf === cpf)) {
-              throw new Error('CPF already in use');
-            } else {
-              if (!/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/.test(cpf)) {
-                throw new Error('Invalid CPF');
-              } else {
-                const cpfWithoutDots = cpf.replace(/[^\d]+/g, '');
-                if (cpfWithoutDots.length !== 11) {
-                  throw new Error('Invalid CPF');
-                } else {
-                  // Elimina CPFs conhecidos que são inválidos
-                  if (
-                    cpfWithoutDots === '00000000000' ||
-                    cpfWithoutDots === '11111111111' ||
-                    cpfWithoutDots === '22222222222' ||
-                    cpfWithoutDots === '33333333333' ||
-                    cpfWithoutDots === '44444444444' ||
-                    cpfWithoutDots === '55555555555' ||
-                    cpfWithoutDots === '66666666666' ||
-                    cpfWithoutDots === '77777777777' ||
-                    cpfWithoutDots === '88888888888' ||
-                    cpfWithoutDots === '99999999999'
-                  ) {
-                    throw new Error('Invalid CPF');
-                  }
-
-                  let sum = 0;
-                  let remainder;
-
-                  // Calcula o primeiro dígito verificador
-                  for (let i = 1; i <= 9; i++) {
-                    sum +=
-                      parseInt(cpfWithoutDots.substring(i - 1, i)) * (11 - i);
-                  }
-
-                  remainder = (sum * 10) % 11;
-
-                  if (remainder === 10 || remainder === 11) {
-                    remainder = 0;
-                  }
-
-                  if (remainder !== parseInt(cpfWithoutDots.substring(9, 10))) {
-                    throw new Error('Invalid CPF');
-                  }
-
-                  sum = 0;
-
-                  // Calcula o segundo dígito verificador
-                  for (let i = 1; i <= 10; i++) {
-                    sum +=
-                      parseInt(cpfWithoutDots.substring(i - 1, i)) * (12 - i);
-                  }
-
-                  remainder = (sum * 10) % 11;
-
-                  if (remainder === 10 || remainder === 11) {
-                    remainder = 0;
-                  }
-
-                  if (
-                    remainder !== parseInt(cpfWithoutDots.substring(10, 11))
-                  ) {
-                    throw new Error('Invalid CPF');
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    this.validateUserData(email, password, superPassword, cpf);
 
     const user = this.users.find((user) => user.id === id);
+    if (!user) {
+      throw new Error('User not found');
+    }
 
-    if (user) {
-      user.name = name;
-      user.email = email;
-      user.password = password;
-      user.cpf = cpf;
-      user.userType = userType;
-
-      if (superPassword) {
-        user.superPassword = superPassword;
-      }
+    user.name = name;
+    user.email = email;
+    user.password = password;
+    user.cpf = cpf;
+    user.userType = userType;
+    if (superPassword) {
+      user.superPassword = superPassword;
     }
 
     return user;
@@ -247,7 +140,11 @@ export class UserService {
   }
 
   getUserById(id: string): User {
-    return this.users.find((user) => user.id === id);
+    const user = this.users.find((user) => user.id === id);
+    if (!user) {
+      throw new Error('User not found');
+    }
+    return user;
   }
 
   listUsers(): User[] {
